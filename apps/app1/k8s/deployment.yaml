@@ -1,0 +1,47 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app1
+  namespace: dev
+  labels: { app: app1 }
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: app1 }
+  template:
+    metadata:
+      labels: { app: app1 }
+    spec:
+      securityContext:
+        runAsNonRoot: true
+      containers:
+        - name: app1
+          image: IMAGE_PLACEHOLDER
+          ports:
+            - containerPort: 8080
+          env:
+            - name: APP_NAME
+              value: app1
+            - name: APP_VERSION
+              value: VERSION_PLACEHOLDER
+          readinessProbe:
+            httpGet: { path: /healthz, port: 8080 }
+          livenessProbe:
+            httpGet: { path: /healthz, port: 8080 }
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }
+            limits: { cpu: 200m, memory: 128Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: app1
+  namespace: dev
+spec:
+  type: LoadBalancer
+  selector: { app: app1 }
+  ports:
+    - port: 80
+      targetPort: 8080

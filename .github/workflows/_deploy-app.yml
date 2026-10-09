@@ -1,0 +1,58 @@
+# Reusable workflow: build an app image, push to Artifact Registry, deploy to the dev GKE cluster.
+name: deploy-app (reusable)
+
+on:
+  workflow_call:
+    inputs:
+      app:
+        description: App folder name under apps/ (app1, app2, app3)
+        required: true
+        type: string
+
+env:
+  PROJECT_ID: enterprise-ci-cd-ai
+  REGION: asia-south1
+  REPOSITORY: apps # Artifact Registry repo
+  CLUSTER: dev-gke-cluster
+  CLUSTER_LOCATION: asia-south1-a
+
+permissions:
+  contents: read
+  id-token: write # Workload Identity Federation
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
+
+      - name: Build and push image
+        run: |
+          IMAGE=${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPOSITORY}/${{ inputs.app }}:${GITHUB_SHA::7}
+          echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
+          docker build -t "$IMAGE" apps/${{ inputs.app }}
+          docker push "$IMAGE"
+
+      - uses: google-github-actions/get-gke-credentials@v2
+        with:
+          cluster_name: ${{ env.CLUSTER }}
+          location: ${{ env.CLUSTER_LOCATION }}
+          project_id: ${{ env.PROJECT_ID }}
+
+      - name: Deploy
+        run: |
+          kubectl apply -f apps/namespace.yaml
+          sed -i "s|IMAGE_PLACEHOLDER|${IMAGE}|; s|VERSION_PLACEHOLDER|${GITHUB_SHA::7}|" apps/${{ inputs.app }}/k8s/deployment.yaml
+          kubectl apply -f apps/${{ inputs.app }}/k8s/deployment.yaml
+          kubectl -n dev rollout status deployment/${{ inputs.app }} --timeout=180s
+          kubectl -n dev get svc ${{ inputs.app }}
