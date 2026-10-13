@@ -1,4 +1,4 @@
-# Reusable workflow: build an app image, push to Artifact Registry, deploy to the dev GKE cluster.
+# Reusable workflow: build an app image, push to Artifact Registry, deploy to the dev GKE cluster with Helm.
 name: deploy-app (reusable)
 
 on:
@@ -15,6 +15,8 @@ env:
   REPOSITORY: apps # Artifact Registry repo
   CLUSTER: dev-gke-cluster
   CLUSTER_LOCATION: asia-south1-a
+  NAMESPACE: dev
+  CHART: charts/hello-app
 
 permissions:
   contents: read
@@ -38,10 +40,12 @@ jobs:
 
       - name: Build and push image
         run: |
-          IMAGE=${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPOSITORY}/${{ inputs.app }}:${GITHUB_SHA::7}
-          echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
-          docker build -t "$IMAGE" apps/${{ inputs.app }}
-          docker push "$IMAGE"
+          IMAGE_REPO=${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPOSITORY}/${{ inputs.app }}
+          IMAGE_TAG=${GITHUB_SHA::7}
+          echo "IMAGE_REPO=$IMAGE_REPO" >> "$GITHUB_ENV"
+          echo "IMAGE_TAG=$IMAGE_TAG" >> "$GITHUB_ENV"
+          docker build -t "$IMAGE_REPO:$IMAGE_TAG" apps/${{ inputs.app }}
+          docker push "$IMAGE_REPO:$IMAGE_TAG"
 
       - uses: google-github-actions/get-gke-credentials@v2
         with:
@@ -49,10 +53,19 @@ jobs:
           location: ${{ env.CLUSTER_LOCATION }}
           project_id: ${{ env.PROJECT_ID }}
 
-      - name: Deploy
+      - uses: azure/setup-helm@v4
+
+      - name: Lint chart
         run: |
-          kubectl apply -f apps/namespace.yaml
-          sed -i "s|IMAGE_PLACEHOLDER|${IMAGE}|; s|VERSION_PLACEHOLDER|${GITHUB_SHA::7}|" apps/${{ inputs.app }}/k8s/deployment.yaml
-          kubectl apply -f apps/${{ inputs.app }}/k8s/deployment.yaml
-          kubectl -n dev rollout status deployment/${{ inputs.app }} --timeout=180s
-          kubectl -n dev get svc ${{ inputs.app }}
+          helm lint ${CHART} -f apps/${{ inputs.app }}/values-dev.yaml \
+            --set image.repository=${IMAGE_REPO} --set image.tag=${IMAGE_TAG}
+
+      - name: Deploy with Helm
+        run: |
+          helm upgrade --install ${{ inputs.app }} ${CHART} \
+            --namespace ${NAMESPACE} --create-namespace \
+            -f apps/${{ inputs.app }}/values-dev.yaml \
+            --set image.repository=${IMAGE_REPO} \
+            --set image.tag=${IMAGE_TAG} \
+            --atomic --wait --timeout 5m
+          kubectl -n ${NAMESPACE} get svc ${{ inputs.app }}

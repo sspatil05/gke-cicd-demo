@@ -3,7 +3,7 @@ name: app3
 on:
   push:
     branches: [main]
-    paths: ["apps/app3/**", "apps/namespace.yaml", ".github/workflows/_deploy-app.yml", ".github/workflows/app3.yml"]
+    paths: ["apps/app3/**", "charts/hello-app/**", ".github/workflows/_deploy-app.yml", ".github/workflows/app3.yml"]
   workflow_dispatch:
 
 permissions:

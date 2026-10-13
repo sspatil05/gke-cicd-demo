@@ -1,0 +1,5 @@
+# app3 - dev environment overrides for charts/hello-app
+appName: app3
+replicaCount: 2
+image:
+  repository: asia-south1-docker.pkg.dev/enterprise-ci-cd-ai/apps/app3

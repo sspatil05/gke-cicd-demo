@@ -1,0 +1,40 @@
+# Defaults shared by every app. Per-app / per-environment overrides live in apps/<app>/values-<env>.yaml.
+
+# Short app name (app1, app2, app3). Used for resource names, labels and the APP_NAME env var.
+appName: ""
+
+replicaCount: 2
+
+image:
+  repository: "" # e.g. asia-south1-docker.pkg.dev/<project>/apps/app1  (set by the pipeline)
+  tag: ""        # git short SHA (set by the pipeline)
+  pullPolicy: IfNotPresent
+
+containerPort: 8080
+
+service:
+  type: LoadBalancer # demo only: one billable load balancer per app. Use ClusterIP + Ingress for real use.
+  port: 80
+
+probes:
+  path: /healthz
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 200m
+    memory: 128Mi
+
+podSecurityContext:
+  runAsNonRoot: true
+
+securityContext:
+  allowPrivilegeEscalation: false
+
+env: {} # extra environment variables, e.g. { LOG_LEVEL: debug }
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

@@ -1,0 +1,6 @@
+{{ include "hello-app.name" . }} deployed to namespace {{ .Release.Namespace }} (image {{ include "hello-app.image" . }}).
+{{- if eq .Values.service.type "LoadBalancer" }}
+
+External IP (may take a few minutes):
+  kubectl -n {{ .Release.Namespace }} get svc {{ include "hello-app.name" . }}
+{{- end }}
