@@ -69,7 +69,7 @@ resource "google_project_iam_member" "deployer_gke" {
 
 resource "google_iam_workload_identity_pool" "github" {
   project                   = var.project_id
-  workload_identity_pool_id = "github-pool"
+  workload_identity_pool_id = var.wif_pool_id
   display_name              = "GitHub Actions"
 
   depends_on = [google_project_service.apis]
